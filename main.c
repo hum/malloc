@@ -19,6 +19,9 @@ Heap_Block heap_alloced_blocks[HEAP_ALLOC_MAXSIZE] = {0};
 size_t heap_alloc_size = 0;
 
 void *heap_malloc(size_t size) { 
+  if (size == 0) {
+    return NULL;
+  }
   // check if the size is within the limits of the heap memory
   assert(heap_size + size <= HEAP_MAXSIZE);
 
