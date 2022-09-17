@@ -3,22 +3,70 @@
 #include <sys/types.h>
 
 #define HEAP_MAXSIZE 65535
-#define HEAP_ALLOC_MAXSIZE 1024
+#define BLOCK_LIST_MAXSIZE 1024
 
 typedef struct {
   void *start;
   size_t size;
 } Heap_Block;
 
+typedef struct {
+  size_t length;
+  Heap_Block blocks[BLOCK_LIST_MAXSIZE];
+} Heap_Block_List;
+
+void heap_block_list_remove(Heap_Block_List *list, void* ptr);
+
+void heap_block_list_sort(Heap_Block_List *list) {
+  if (list->length == 0) {
+    return;
+  }
+
+  // naively sort the blocks into a sequential order -- O(n)
+  for (size_t i = list->length; i > 0; i--) {
+    // check if the current ptr is bigger than the previous
+    // if yes, stop
+    if (list->blocks[i].start > list->blocks[i-1].start) {
+      break;
+    }
+    // swap
+    const Heap_Block hb = list->blocks[i];
+    list->blocks[i] = list->blocks[i-1];
+    list->blocks[i-1] = hb;
+  }
+}
+
+void heap_block_list_insert(Heap_Block_List *list, void* ptr, size_t size) {
+  assert(list->length< BLOCK_LIST_MAXSIZE);
+
+  list->blocks[list->length].start = ptr;
+  list->blocks[list->length].size = size;
+  heap_block_list_sort(list);
+  list->length += 1;
+}
+
+
+void heap_block_list_dump_stdout(Heap_Block_List *list) {
+  printf("dumping heap block list of size: %zu\n", list->length);
+  for (int i = 0; i < list->length; i++) {
+    Heap_Block block = list->blocks[i];
+    printf("start: %p, size: %zu\n",
+        block.start,
+        block.size
+    );
+  }
+}
+
 // init heap
 char heap[HEAP_MAXSIZE] = {0};
 size_t heap_size = 0;
 
-// allocated blocks
-Heap_Block heap_alloced_blocks[HEAP_ALLOC_MAXSIZE] = {0};
-size_t heap_alloc_size = 0;
+Heap_Block_List heap_alloced_blocks = {0};
+Heap_Block_List heap_freed_blocks = {0};
 
 void *heap_malloc(size_t size) { 
+  // TODO:
+  // behave like malloc() and return a unique ptr if size == 0
   if (size == 0) {
     return NULL;
   }
@@ -26,41 +74,22 @@ void *heap_malloc(size_t size) {
   assert(heap_size + size <= HEAP_MAXSIZE);
 
   // ptr to the heap block
-  void* result = heap + heap_size;
+  void* ptr = heap + heap_size;
   // size of the block
   heap_size += size;
 
-  // check if the block fits into the allocated block limit
-  assert(heap_alloc_size < HEAP_ALLOC_MAXSIZE);
-
-  const Heap_Block block = {
-    .start = result,
-    .size = size,
-  };
-
-  heap_alloced_blocks[heap_alloc_size++] = block;
-  return result;
-}
-
-void heap_print_alloc_blocks() {
-  printf("Dumping heap chunks, length: %zu \n", heap_alloc_size);
-  for (size_t i = 0; i < heap_alloc_size; i++) {
-    printf("start: %p, size: %d\n",
-        heap_alloced_blocks[i].start,
-        heap_alloced_blocks[i].size
-    );
-  }
+  // allocate
+  heap_block_list_insert(&heap_alloced_blocks, ptr, size);
+  return ptr;
 }
 
 void heap_free(void *ptr);
 void *realloc(void *ptr, size_t size);
 
 int main() {
-  //char *mem_root = heap_malloc(20);
   for (int i = 0; i < 20; i++) {
     heap_malloc(i);
   }
-  heap_print_alloc_blocks();
-  //heap_free(mem_root);
+  heap_block_list_dump_stdout(&heap_alloced_blocks);
   return 0;
 }
