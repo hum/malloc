@@ -15,7 +15,17 @@ typedef struct {
   Heap_Block blocks[BLOCK_LIST_MAXSIZE];
 } Heap_Block_List;
 
-void heap_block_list_remove(Heap_Block_List *list, void* ptr);
+void heap_block_list_remove(Heap_Block_List *list, size_t index) {
+  assert(index < list->length);
+
+  // shift all elements of the array by 1
+  // starting with the index given in the parameter
+  // which causes the array to not have empty indices in the middle
+  for (size_t i = index; i < list->length - 1; i--) {
+    list->blocks[index] = list->blocks[index+1];
+  }
+  list->length--;
+}
 
 int heap_block_list_find(Heap_Block_List *list, void* ptr) {
   // naively searches through the heap list
@@ -110,8 +120,7 @@ void heap_free(void *ptr) {
 
   Heap_Block b = heap_alloced_blocks.blocks[index];
   heap_block_list_insert(&heap_freed_blocks, b.start, b.size);
-  // TODO:
-  // heap_block_list_remove();
+  heap_block_list_remove(&heap_alloced_blocks, index);
 }
 void *realloc(void *ptr, size_t size);
 
