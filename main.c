@@ -17,6 +17,19 @@ typedef struct {
 
 void heap_block_list_remove(Heap_Block_List *list, void* ptr);
 
+int heap_block_list_find(Heap_Block_List *list, void* ptr) {
+  // naively searches through the heap list
+  // returns index of an element if it matches the given pointer in "ptr"
+  // O(n)
+  // TODO: convert to a binary search if bored
+  for (int i = 0; i < list->length; i++) {
+    if (list->blocks[i].start == ptr) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 void heap_block_list_sort(Heap_Block_List *list) {
   if (list->length == 0) {
     return;
@@ -37,7 +50,7 @@ void heap_block_list_sort(Heap_Block_List *list) {
 }
 
 void heap_block_list_insert(Heap_Block_List *list, void* ptr, size_t size) {
-  assert(list->length< BLOCK_LIST_MAXSIZE);
+  assert(list->length < BLOCK_LIST_MAXSIZE);
 
   list->blocks[list->length].start = ptr;
   list->blocks[list->length].size = size;
@@ -67,7 +80,7 @@ Heap_Block_List heap_freed_blocks = {0};
 void *heap_malloc(size_t size) { 
   // TODO:
   // behave like malloc() and return a unique ptr if size == 0
-  if (size == 0) {
+  if (size <= 0) {
     return NULL;
   }
   // check if the size is within the limits of the heap memory
@@ -83,13 +96,33 @@ void *heap_malloc(size_t size) {
   return ptr;
 }
 
-void heap_free(void *ptr);
+void heap_free(void *ptr) {
+  if (ptr == NULL) {
+    // if heap_malloc() is asked to allocate heap space with the size 0
+    // it returns NULL value as the pointer
+    return;
+  }
+  int index = heap_block_list_find(&heap_alloced_blocks, ptr);
+  printf("found index: %d\n", index);
+  // TODO:
+  // Better error than just assert
+  assert(index >= 0);
+
+  Heap_Block b = heap_alloced_blocks.blocks[index];
+  heap_block_list_insert(&heap_freed_blocks, b.start, b.size);
+  // TODO:
+  // heap_block_list_remove();
+}
 void *realloc(void *ptr, size_t size);
 
 int main() {
-  for (int i = 0; i < 20; i++) {
-    heap_malloc(i);
+  for (int i = 0; i < 10; i++) {
+    void *p = heap_malloc(i);
+    if (i % 2 == 0) {
+      heap_free(p);
+    }
   }
   heap_block_list_dump_stdout(&heap_alloced_blocks);
+  heap_block_list_dump_stdout(&heap_freed_blocks);
   return 0;
 }
