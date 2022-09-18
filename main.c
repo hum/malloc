@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <sys/types.h>
 
-#define HEAP_MAXSIZE 65535
-#define BLOCK_LIST_MAXSIZE 1024
+#define HEAP_MAXSIZE 2 << 15
+#define BLOCK_LIST_MAXSIZE 2 << 15
 
 typedef struct {
   void *start;
@@ -14,6 +14,16 @@ typedef struct {
   size_t length;
   Heap_Block blocks[BLOCK_LIST_MAXSIZE];
 } Heap_Block_List;
+
+
+// init heap
+char heap[HEAP_MAXSIZE] = {0};
+
+Heap_Block_List heap_alloced_blocks = {0};
+Heap_Block_List heap_freed_blocks = {
+  .length = 1,
+  .blocks = {{.start = heap, .size = sizeof(heap)}}
+};
 
 void heap_block_list_remove(Heap_Block_List *list, size_t index) {
   assert(index < list->length);
@@ -73,19 +83,14 @@ void heap_block_list_dump_stdout(Heap_Block_List *list) {
   printf("dumping heap block list of size: %zu\n", list->length);
   for (int i = 0; i < list->length; i++) {
     Heap_Block block = list->blocks[i];
-    printf("start: %p, size: %zu\n",
+    printf("index: %d, start: %p, size: %zu\n",
+        i,
         block.start,
         block.size
     );
   }
 }
 
-// init heap
-char heap[HEAP_MAXSIZE] = {0};
-size_t heap_size = 0;
-
-Heap_Block_List heap_alloced_blocks = {0};
-Heap_Block_List heap_freed_blocks = {0};
 
 void *heap_malloc(size_t size) { 
   // TODO:
@@ -94,16 +99,34 @@ void *heap_malloc(size_t size) {
     return NULL;
   }
   // check if the size is within the limits of the heap memory
-  assert(heap_size + size <= HEAP_MAXSIZE);
+  //assert(size <= heap_freed_blocks.blocks[0].size);
 
-  // ptr to the heap block
-  void* ptr = heap + heap_size;
-  // size of the block
-  heap_size += size;
+  for (size_t i = 0; i < heap_freed_blocks.length; i++) {
+    if (!(size <= heap_freed_blocks.blocks[i].size)) {
+      // freed block is smaller than the necessary size
+      continue;
+    }
 
-  // allocate
-  heap_block_list_insert(&heap_alloced_blocks, ptr, size);
-  return ptr;
+    Heap_Block b = heap_freed_blocks.blocks[i];
+
+    // remove free block
+    heap_block_list_remove(&heap_freed_blocks, i);
+
+    // allocate memory to alloced blocks
+    heap_block_list_insert(&heap_alloced_blocks, b.start, size);
+
+    // if the user allocated size is smaller than the heap block
+    // we can allocate the size delta as a new free block
+    if (b.size > size) {
+      size_t size_delta = b.size - size;
+      heap_block_list_insert(&heap_freed_blocks, b.start + size_delta, size_delta);
+    }
+    return b.start;
+  }
+
+  // this means we are out of memory
+  // TODO: error?
+  return NULL;
 }
 
 void heap_free(void *ptr) {
@@ -112,11 +135,12 @@ void heap_free(void *ptr) {
     // it returns NULL value as the pointer
     return;
   }
+
   int index = heap_block_list_find(&heap_alloced_blocks, ptr);
-  printf("found index: %d\n", index);
-  // TODO:
-  // Better error than just assert
-  assert(index >= 0);
+  if (index < 0) {
+    // invalid pointer to a heap memory
+    return;
+  }
 
   Heap_Block b = heap_alloced_blocks.blocks[index];
   heap_block_list_insert(&heap_freed_blocks, b.start, b.size);
