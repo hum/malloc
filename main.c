@@ -25,6 +25,12 @@ Heap_Block_List heap_freed_blocks = {
   .blocks = {{.start = heap, .size = sizeof(heap)}}
 };
 
+
+void heap_defrag() {
+  // TODO
+  // Merge all fragmented pieces of the freed heap space back into the base
+}
+
 void heap_block_list_remove(Heap_Block_List *list, size_t index) {
   assert(index < list->length);
 
@@ -54,6 +60,7 @@ void heap_block_list_sort(Heap_Block_List *list) {
   if (list->length == 0) {
     return;
   }
+  heap_defrag();
 
   // naively sort the blocks into a sequential order -- O(n)
   for (size_t i = list->length; i > 0; i--) {
@@ -75,9 +82,8 @@ void heap_block_list_insert(Heap_Block_List *list, void* ptr, size_t size) {
   list->blocks[list->length].start = ptr;
   list->blocks[list->length].size = size;
   heap_block_list_sort(list);
-  list->length += 1;
+  list->length++;
 }
-
 
 void heap_block_list_dump_stdout(Heap_Block_List *list) {
   printf("dumping heap block list of size: %zu\n", list->length);
@@ -141,12 +147,12 @@ void heap_free(void *ptr) {
     // invalid pointer to a heap memory
     return;
   }
+  assert(ptr == heap_alloced_blocks.blocks[index].start);
 
   Heap_Block b = heap_alloced_blocks.blocks[index];
   heap_block_list_insert(&heap_freed_blocks, b.start, b.size);
   heap_block_list_remove(&heap_alloced_blocks, index);
 }
-void *realloc(void *ptr, size_t size);
 
 int main() {
   for (int i = 0; i < 10; i++) {
